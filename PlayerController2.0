@@ -1,0 +1,91 @@
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    public float moveSpeed = 6f; // Скорость ходьбы
+    public float runSpeed = 12f; // Скорость бега
+    public float rotationSpeed = 200f; // Скорость поворота
+    public float jumpForce = 5f; // Сила прыжка
+    public LayerMask groundLayer; // Слой земли для проверки
+
+    private Rigidbody rb; 
+    private bool isGrounded; 
+    private float currentSpeed;
+
+    private CapsuleCollider capsuleCollider;
+
+    void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+        capsuleCollider = GetComponent<CapsuleCollider>();
+    }
+
+    void Update()
+    {
+        // Выбор скорости движения (бег или ходьба)
+        if (Input.GetKey(KeyCode.LeftShift))
+        {
+            currentSpeed = runSpeed;
+        }
+        else
+        {
+            currentSpeed = moveSpeed;
+        }
+
+        // Управление движением
+        MovePlayer();
+
+        // Прыжок
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        {
+            Jump();
+        }
+    }
+
+    void FixedUpdate()
+    {
+        CheckGround();
+    }
+
+    // Управление движением и поворотом
+    private void MovePlayer()
+    {
+        float horizontal = Input.GetAxis("Horizontal"); // Поворот (A/D)
+        float vertical = Input.GetAxis("Vertical");     // Движение вперёд/назад (W/S)
+
+        // Поворот персонажа
+        if (horizontal != 0)
+        {
+            transform.Rotate(0, horizontal * rotationSpeed * Time.deltaTime, 0);
+        }
+
+        // Движение вперёд/назад
+        if (vertical != 0)
+        {
+            Vector3 move = transform.forward * vertical * currentSpeed * Time.deltaTime;
+            rb.MovePosition(rb.position + move);
+        }
+    }
+
+    // Прыжок
+    private void Jump()
+    {
+        Debug.Log("Jump!");
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+    }
+
+    // Проверка, находится ли персонаж на земле
+    private void CheckGround()
+    {
+        // Позиция проверки - чуть ниже нижней части капсулы
+        Vector3 groundCheckPosition = transform.position + Vector3.down * (capsuleCollider.height / 2 + 0.1f);
+
+        // Проверка соприкосновения с объектами слоя Ground
+        isGrounded = Physics.CheckSphere(groundCheckPosition, 0.3f, groundLayer);
+
+        // Рисуем линию для отладки
+        Debug.DrawLine(transform.position, groundCheckPosition, isGrounded ? Color.green : Color.red);
+
+        Debug.Log("Is Grounded: " + isGrounded);
+    }
+}
