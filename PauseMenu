@@ -1,0 +1,48 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class PauseMenu : MonoBehaviour
+{
+    public GameObject pauseMenuUI; // Ссылка на панель меню
+    private bool isPaused = false;
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (isPaused)
+            {
+                Resume();
+            }
+            else
+            {
+                Pause();
+            }
+        }
+    }
+
+    public void Resume()
+    {
+        pauseMenuUI.SetActive(false); // Закрываем меню
+        Time.timeScale = 1f; // Возвращаем скорость игры
+        isPaused = false;
+    }
+
+    public void Pause()
+    {
+        pauseMenuUI.SetActive(true); // Открываем меню
+        Time.timeScale = 0f; // Останавливаем игру
+        isPaused = true;
+    }
+
+    public void OpenSettings()
+    {
+        Debug.Log("Настройки (пока не реализовано)"); // Здесь можно добавить логику
+    }
+
+    public void ExitToMainMenu()
+    {
+        Time.timeScale = 1f; // Включаем время перед выходом
+        SceneManager.LoadScene("Scenes/MainMenu"); // Загружаем сцену главного меню
+    }
+}
