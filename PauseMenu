@@ -6,6 +6,12 @@ public class PauseMenu : MonoBehaviour
     public GameObject pauseMenuUI; // Ссылка на панель меню
     private bool isPaused = false;
 
+    void Start()
+    {
+        pauseMenuUI.SetActive(false); // Скрываем меню при старте
+        Time.timeScale = 1f; // Убеждаемся, что время игры идет нормально
+    }
+
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
