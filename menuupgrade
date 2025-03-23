@@ -1,0 +1,19 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class UpgradeMenuController : MonoBehaviour
+{
+    public GameObject upgradeMenu; // Панель прокачек
+
+    void Start()
+    {
+        // Скрываем меню при старте
+        upgradeMenu.SetActive(false);
+    }
+
+    // Метод для открытия/закрытия меню
+    public void ToggleUpgradeMenu()
+    {
+        upgradeMenu.SetActive(!upgradeMenu.activeSelf);
+    }
+}
