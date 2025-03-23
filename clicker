@@ -1,0 +1,29 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class Clicker : MonoBehaviour
+{
+    public int score = 0;  
+    public Text scoreText; 
+
+    void Start()
+    {
+        UpdateScoreText();
+
+        Button btn = GetComponent<Button>();
+        if (btn != null)
+            btn.onClick.AddListener(OnClick);
+    }
+
+    void OnClick()
+    {
+        score++;
+        UpdateScoreText();
+    }
+
+    void UpdateScoreText()
+    {
+        if (scoreText != null)
+            scoreText.text = "Очки: " + score;
+    }
+}
