@@ -1,0 +1,36 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class Clicker : MonoBehaviour
+{
+    public int score = 0;  // Очки
+    public Text scoreText; // UI-текст для отображения счёта
+
+    void Start()
+    {
+        // Загружаем сохранённые очки
+        score = PlayerPrefs.GetInt("PlayerScore", 0);
+        UpdateScoreText();
+
+        // Находим кнопку и добавляем слушатель кликов
+        Button btn = GetComponent<Button>();
+        if (btn != null)
+            btn.onClick.AddListener(OnClick);
+    }
+
+    void OnClick()
+    {
+        score++;  
+        UpdateScoreText();
+        
+        // Сохраняем очки
+        PlayerPrefs.SetInt("PlayerScore", score);
+        PlayerPrefs.Save();
+    }
+
+    void UpdateScoreText()
+    {
+        if (scoreText != null)
+            scoreText.text = "Очки: " + score;
+    }
+}
