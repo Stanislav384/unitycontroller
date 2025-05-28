@@ -1,0 +1,85 @@
+using UnityEngine;
+using System.Collections; // Нужно для IEnumerator
+
+public class PlayerMovement : MonoBehaviour
+{
+    [Header("Movement")]
+    public float moveSpeed = 5f;
+    public float jumpForce = 12f;
+
+    [Header("Ground Check")]
+    public Transform groundCheck;
+    public float groundCheckRadius = 0.2f;
+    public LayerMask groundLayer;
+
+    private Rigidbody2D rb;
+    private Animator animator;
+    private SpriteRenderer spriteRenderer;
+    private bool isGrounded;
+
+    private int bridgeLayer;
+
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        animator = GetComponent<Animator>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        
+        // Получаем слой Bridge
+        bridgeLayer = LayerMask.NameToLayer("Bridge");
+    }
+
+    void Update()
+    {
+        // Проверка земли
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+
+        // Горизонтальное движение
+        float moveInput = Input.GetAxisRaw("Horizontal");
+        rb.velocity = new Vector2(moveInput * moveSpeed, rb.velocity.y);
+
+        // Разворот спрайта
+        if (moveInput != 0)
+        {
+            spriteRenderer.flipX = moveInput < 0;
+        }
+
+        // Прыжок
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        {
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+            animator.SetBool("IsJumping", true);
+        }
+
+        // Анимации
+        animator.SetFloat("Speed", Mathf.Abs(moveInput));
+        animator.SetBool("IsFalling", rb.velocity.y < -0.1f);
+        if (isGrounded && Mathf.Abs(rb.velocity.y) < 0.01f)
+        {
+            animator.SetBool("IsJumping", false);
+        }
+
+        // Спуск сквозь платформу
+        if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && isGrounded)
+        {
+            StartCoroutine(DisableCollisionWithBridgeTemporarily());
+        }
+    }
+
+    IEnumerator DisableCollisionWithBridgeTemporarily()
+    {
+        // Игнорируем столкновения с Bridge
+        Physics2D.IgnoreLayerCollision(gameObject.layer, bridgeLayer, true);
+        yield return new WaitForSeconds(0.5f); // Пауза для проваливания
+        Physics2D.IgnoreLayerCollision(gameObject.layer, bridgeLayer, false);
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (groundCheck != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+        }
+    }
+}
