@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections; // Нужно для IEnumerator
+using System.Collections;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -15,8 +15,8 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
-    private bool isGrounded;
 
+    private bool isGrounded;
     private int bridgeLayer;
 
     void Start()
@@ -24,14 +24,14 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        
-        // Получаем слой Bridge
+
+        // Получаем индекс слоя Bridge
         bridgeLayer = LayerMask.NameToLayer("Bridge");
     }
 
     void Update()
     {
-        // Проверка земли
+        // Проверка, стоим ли на земле (включая Bridge, если указано в groundLayer)
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
         // Горизонтальное движение
@@ -54,12 +54,13 @@ public class PlayerMovement : MonoBehaviour
         // Анимации
         animator.SetFloat("Speed", Mathf.Abs(moveInput));
         animator.SetBool("IsFalling", rb.velocity.y < -0.1f);
+
         if (isGrounded && Mathf.Abs(rb.velocity.y) < 0.01f)
         {
             animator.SetBool("IsJumping", false);
         }
 
-        // Спуск сквозь платформу
+        // ↓ Провалиться сквозь платформу ↓
         if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && isGrounded)
         {
             StartCoroutine(DisableCollisionWithBridgeTemporarily());
@@ -68,9 +69,8 @@ public class PlayerMovement : MonoBehaviour
 
     IEnumerator DisableCollisionWithBridgeTemporarily()
     {
-        // Игнорируем столкновения с Bridge
         Physics2D.IgnoreLayerCollision(gameObject.layer, bridgeLayer, true);
-        yield return new WaitForSeconds(0.5f); // Пауза для проваливания
+        yield return new WaitForSeconds(0.5f);
         Physics2D.IgnoreLayerCollision(gameObject.layer, bridgeLayer, false);
     }
 
