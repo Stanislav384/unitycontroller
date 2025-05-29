@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections;
+using System.Collections; // Добавляем для использования Coroutine
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -12,31 +12,35 @@ public class PlayerMovement : MonoBehaviour
     public float groundCheckRadius = 0.2f;
     public LayerMask groundLayer;
 
+    [Header("Drop Through Platform")] // Новая секция
+    public float dropThroughDuration = 0.3f; // Сколько времени игнорировать платформу
+    public LayerMask platformLayer; // Слой вашей платформы (Bridge)
+
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
-
+    private Collider2D playerCollider; // Коллайдер игрока
     private bool isGrounded;
-    private int bridgeLayer;
+
+    // Переменная для отслеживания, какой платформе мы сейчас игнорируем столкновение
+    private PlatformEffector2D currentOneWayPlatformEffector;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-
-        // Получаем индекс слоя Bridge
-        bridgeLayer = LayerMask.NameToLayer("Bridge");
+        playerCollider = GetComponent<Collider2D>(); // Получаем коллайдер игрока
     }
 
     void Update()
     {
-        // Проверка, стоим ли на земле (включая Bridge, если указано в groundLayer)
+        // Проверка земли
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
         // Горизонтальное движение
         float moveInput = Input.GetAxisRaw("Horizontal");
-        rb.velocity = new Vector2(moveInput * moveSpeed, rb.velocity.y);
+        rb.linearVelocity = new Vector2(moveInput * moveSpeed, rb.linearVelocity.y);
 
         // Разворот спрайта
         if (moveInput != 0)
@@ -47,32 +51,68 @@ public class PlayerMovement : MonoBehaviour
         // Прыжок
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
-            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
             animator.SetBool("IsJumping", true);
         }
 
-        // Анимации
-        animator.SetFloat("Speed", Mathf.Abs(moveInput));
-        animator.SetBool("IsFalling", rb.velocity.y < -0.1f);
+        // --- НОВАЯ ЛОГИКА: Проваливание сквозь платформу ---
+        if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && isGrounded)
+        {
+            // Проверяем, на какой платформе мы стоим
+            RaycastHit2D hit = Physics2D.Raycast(groundCheck.position, Vector2.down, groundCheckRadius + 0.1f, platformLayer);
+            if (hit.collider != null)
+            {
+                // Получаем PlatformEffector2D с той платформы
+                PlatformEffector2D platformEffector = hit.collider.GetComponent<PlatformEffector2D>();
+                if (platformEffector != null && platformEffector.useOneWay)
+                {
+                    // Сохраняем ссылку на текущую одностороннюю платформу
+                    currentOneWayPlatformEffector = platformEffector;
 
-        if (isGrounded && Mathf.Abs(rb.velocity.y) < 0.01f)
+                    // Временно отключаем столкновение между игроком и платформой
+                    Physics2D.IgnoreCollision(playerCollider, hit.collider, true);
+
+                    // Запускаем корутину, чтобы вернуть столкновение через некоторое время
+                    StartCoroutine(EnablePlatformCollision(hit.collider, dropThroughDuration));
+                }
+            }
+        }
+        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+
+        // Анимация бега
+        animator.SetFloat("Speed", Mathf.Abs(moveInput));
+
+        // Анимация падения
+        animator.SetBool("IsFalling", rb.linearVelocity.y < -0.1f);
+
+        // Сброс прыжка при приземлении
+        if (isGrounded && Mathf.Abs(rb.linearVelocity.y) < 0.01f)
         {
             animator.SetBool("IsJumping", false);
         }
+    }
 
-        // ↓ Провалиться сквозь платформу ↓
-        if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && isGrounded)
+    // Корутина для временного игнорирования столкновения
+    IEnumerator EnablePlatformCollision(Collider2D platformCollider, float duration)
+    {
+        yield return new WaitForSeconds(duration);
+
+        // Убедимся, что мы все еще хотим игнорировать столкновение
+        // Это важно, чтобы избежать случайного включения, если игрок уже давно улетел
+        if (playerCollider != null && platformCollider != null && Physics2D.GetIgnoreCollision(playerCollider, platformCollider))
         {
-            StartCoroutine(DisableCollisionWithBridgeTemporarily());
+            Physics2D.IgnoreCollision(playerCollider, platformCollider, false);
+            currentOneWayPlatformEffector = null; // Сбрасываем ссылку
         }
     }
 
-    IEnumerator DisableCollisionWithBridgeTemporarily()
-    {
-        Physics2D.IgnoreLayerCollision(gameObject.layer, bridgeLayer, true);
-        yield return new WaitForSeconds(0.5f);
-        Physics2D.IgnoreLayerCollision(gameObject.layer, bridgeLayer, false);
-    }
+    // Это важно для корректного взаимодействия с Platform Effector 2D,
+    // чтобы игрок мог пройти через платформу снизу.
+    // Platform Effector 2D сам управляет игнорированием столкновений для восходящего движения.
+    // Но если вы столкнетесь с проблемами, этот метод может пригодиться для отладки.
+    // void OnCollisionEnter2D(Collision2D collision) { }
+    // void OnCollisionExit2D(Collision2D collision) { }
+
 
     void OnDrawGizmosSelected()
     {
