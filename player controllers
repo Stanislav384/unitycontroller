@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections; // Добавляем для использования Coroutine
+using System.Collections;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -12,17 +12,23 @@ public class PlayerMovement : MonoBehaviour
     public float groundCheckRadius = 0.2f;
     public LayerMask groundLayer;
 
-    [Header("Drop Through Platform")] // Новая секция
-    public float dropThroughDuration = 0.3f; // Сколько времени игнорировать платформу
-    public LayerMask platformLayer; // Слой вашей платформы (Bridge)
+    [Header("Drop Through Platform")]
+    public float dropThroughDuration = 0.3f;
+    public LayerMask platformLayer;
+
+    [Header("Health & Damage")]
+    public int maxHealth = 10;
+    public int spikeDamage = 1;
+    public float damageCooldown = 0.5f;
 
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
-    private Collider2D playerCollider; // Коллайдер игрока
+    private Collider2D playerCollider;
     private bool isGrounded;
+    private int currentHealth;
+    private float lastDamageTime;
 
-    // Переменная для отслеживания, какой платформе мы сейчас игнорируем столкновение
     private PlatformEffector2D currentOneWayPlatformEffector;
 
     void Start()
@@ -30,89 +36,109 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        playerCollider = GetComponent<Collider2D>(); // Получаем коллайдер игрока
+        playerCollider = GetComponent<Collider2D>();
+
+        currentHealth = maxHealth;
+        lastDamageTime = -damageCooldown;
+        Debug.Log("Player spawned with " + currentHealth + " HP.");
     }
 
     void Update()
     {
-        // Проверка земли
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        // Горизонтальное движение
         float moveInput = Input.GetAxisRaw("Horizontal");
         rb.linearVelocity = new Vector2(moveInput * moveSpeed, rb.linearVelocity.y);
 
-        // Разворот спрайта
         if (moveInput != 0)
         {
             spriteRenderer.flipX = moveInput < 0;
         }
 
-        // Прыжок
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
             animator.SetBool("IsJumping", true);
         }
 
-        // --- НОВАЯ ЛОГИКА: Проваливание сквозь платформу ---
         if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && isGrounded)
         {
-            // Проверяем, на какой платформе мы стоим
             RaycastHit2D hit = Physics2D.Raycast(groundCheck.position, Vector2.down, groundCheckRadius + 0.1f, platformLayer);
             if (hit.collider != null)
             {
-                // Получаем PlatformEffector2D с той платформы
                 PlatformEffector2D platformEffector = hit.collider.GetComponent<PlatformEffector2D>();
                 if (platformEffector != null && platformEffector.useOneWay)
                 {
-                    // Сохраняем ссылку на текущую одностороннюю платформу
                     currentOneWayPlatformEffector = platformEffector;
-
-                    // Временно отключаем столкновение между игроком и платформой
                     Physics2D.IgnoreCollision(playerCollider, hit.collider, true);
-
-                    // Запускаем корутину, чтобы вернуть столкновение через некоторое время
                     StartCoroutine(EnablePlatformCollision(hit.collider, dropThroughDuration));
                 }
             }
         }
-        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
 
-        // Анимация бега
         animator.SetFloat("Speed", Mathf.Abs(moveInput));
 
-        // Анимация падения
         animator.SetBool("IsFalling", rb.linearVelocity.y < -0.1f);
 
-        // Сброс прыжка при приземлении
         if (isGrounded && Mathf.Abs(rb.linearVelocity.y) < 0.01f)
         {
             animator.SetBool("IsJumping", false);
         }
     }
 
-    // Корутина для временного игнорирования столкновения
     IEnumerator EnablePlatformCollision(Collider2D platformCollider, float duration)
     {
         yield return new WaitForSeconds(duration);
-
-        // Убедимся, что мы все еще хотим игнорировать столкновение
-        // Это важно, чтобы избежать случайного включения, если игрок уже давно улетел
         if (playerCollider != null && platformCollider != null && Physics2D.GetIgnoreCollision(playerCollider, platformCollider))
         {
             Physics2D.IgnoreCollision(playerCollider, platformCollider, false);
-            currentOneWayPlatformEffector = null; // Сбрасываем ссылку
+            currentOneWayPlatformEffector = null;
         }
     }
 
-    // Это важно для корректного взаимодействия с Platform Effector 2D,
-    // чтобы игрок мог пройти через платформу снизу.
-    // Platform Effector 2D сам управляет игнорированием столкновений для восходящего движения.
-    // Но если вы столкнетесь с проблемами, этот метод может пригодиться для отладки.
-    // void OnCollisionEnter2D(Collision2D collision) { }
-    // void OnCollisionExit2D(Collision2D collision) { }
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Spikes"))
+        {
+            if (Time.time >= lastDamageTime + damageCooldown)
+            {
+                TakeDamage(spikeDamage);
+                lastDamageTime = Time.time;
+            }
+        }
+    }
 
+    void OnTriggerStay2D(Collider2D other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Spikes"))
+        {
+            if (Time.time >= lastDamageTime + damageCooldown)
+            {
+                TakeDamage(spikeDamage);
+                lastDamageTime = Time.time;
+            }
+        }
+    }
+
+    void TakeDamage(int amount)
+    {
+        currentHealth -= amount;
+        Debug.Log("Player took " + amount + " damage. Current HP: " + currentHealth);
+
+        if (currentHealth <= 0)
+        {
+            currentHealth = 0;
+            Die();
+        }
+    }
+
+    void Die()
+    {
+        Debug.Log("Player Died!");
+        this.enabled = false;
+        playerCollider.enabled = false;
+        rb.isKinematic = true;
+    }
 
     void OnDrawGizmosSelected()
     {
