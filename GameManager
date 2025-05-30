@@ -1,0 +1,98 @@
+using UnityEngine;
+using UnityEngine.SceneManagement; // Добавим для работы со сценами
+
+public class GameManager : MonoBehaviour
+{
+    // Singleton паттерн для доступа к GameManager из любого места
+    public static GameManager Instance { get; private set; }
+
+    [Header("Player Health Settings")]
+    public int maxHealth = 10;      // Максимальное здоровье
+    public int spikeDamage = 1;     // Урон от шипов (переносим сюда из PlayerMovement)
+
+    // [HideInInspector] // Можно скрыть, если не хотите, чтобы currentHealth редактировался в инспекторе напрямую
+    public int currentHealth;       // Текущее здоровье игрока
+
+    private bool isFirstGameLoad = true; // Флаг для определения первого запуска игры
+
+    void Awake()
+    {
+        // Реализация Singleton: гарантируем, что есть только один GameManager
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject); // Если GameManager уже существует, уничтожаем этот новый объект
+            return;
+        }
+
+        Instance = this; // Устанавливаем этот GameManager как единственный экземпляр
+        DontDestroyOnLoad(gameObject); // Делаем GameManager постоянным между сценами
+
+        // Инициализация здоровья при самом первом запуске игры (не при перезагрузке сцены)
+        if (isFirstGameLoad)
+        {
+            currentHealth = maxHealth;
+            isFirstGameLoad = false;
+        }
+
+        Debug.Log("GameManager Initialized. Current Health: " + currentHealth);
+
+        // Подписываемся на событие загрузки сцены, чтобы PlayerSpawner мог получить актуальное здоровье
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    void OnDestroy()
+    {
+        // Отписываемся от события при уничтожении объекта, чтобы избежать ошибок
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    // Этот метод будет вызван при загрузке любой сцены
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        Debug.Log("Scene Loaded: " + scene.name + ". GameManager Health: " + currentHealth);
+        // Если игрок умер и сцена перезагружается,
+        // или если мы переходим на новую сцену,
+        // GameManager сохраняет текущее здоровье.
+        // PlayerSpawner, который спавнит игрока в новой сцене,
+        // будет отвечать за установку этого здоровья на нового игрока.
+    }
+
+    // Метод для получения урона, вызываемый из PlayerMovement
+    public void TakeDamage(int amount)
+    {
+        currentHealth -= amount;
+        Debug.Log("Player took " + amount + " damage. Current HP: " + currentHealth);
+
+        if (currentHealth <= 0)
+        {
+            currentHealth = 0;
+            Die();
+        }
+    }
+
+    // Метод для лечения (если будут аптечки и т.д.)
+    public void Heal(int amount)
+    {
+        currentHealth += amount;
+        if (currentHealth > maxHealth)
+        {
+            currentHealth = maxHealth;
+        }
+        Debug.Log("Player healed " + amount + ". Current HP: " + currentHealth);
+    }
+
+    // Метод обработки смерти игрока
+    void Die()
+    {
+        Debug.Log("Game Over! Player Died!");
+        // Здесь вы можете добавить логику:
+        // - Показать экран Game Over
+        // - Перезагрузить текущую сцену
+        // - Перейти на стартовую сцену
+
+        // Для простоты, сбросим здоровье до максимума и перезагрузим текущую сцену
+        // (это позволит начать уровень заново с полным здоровьем после смерти)
+        currentHealth = maxHealth; // Сбросить здоровье перед перезагрузкой
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); // Перезагрузить текущую сцену
+    }
+}
