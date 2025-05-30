@@ -1,0 +1,138 @@
+using UnityEngine;
+using System.Collections;
+
+public class PlayerMovement : MonoBehaviour
+{
+    [Header("Movement")]
+    public float moveSpeed = 5f;
+    public float jumpForce = 12f;
+
+    [Header("Ground Check")]
+    public Transform groundCheck;
+    public float groundCheckRadius = 0.2f;
+    public LayerMask groundLayer;
+
+    [Header("Drop Through Platform")]
+    public float dropThroughDuration = 0.3f;
+    public LayerMask platformLayer;
+
+    [Header("Damage Cooldown")]
+    public float damageCooldown = 0.5f;
+
+    private Rigidbody2D rb;
+    private Animator animator;
+    private SpriteRenderer spriteRenderer;
+    private Collider2D playerCollider;
+    private bool isGrounded;
+    private float lastDamageTime;
+
+    private PlatformEffector2D currentOneWayPlatformEffector;
+
+    void Awake() // Используем Awake для инициализации всех компонентов
+    {
+        rb = GetComponent<Rigidbody2D>();
+        animator = GetComponent<Animator>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        playerCollider = GetComponent<Collider2D>();
+
+        lastDamageTime = -damageCooldown; // Чтобы сразу можно было получить урон
+    }
+
+    void Start() // Start вызывается после Awake
+    {
+        // При спавне игрока, он берет текущее здоровье из GameManager
+        // У PlayerMovement больше нет своей переменной currentHealth
+        // Debug.Log("PlayerMovement initialized. Health from GameManager: " + GameManager.Instance.currentHealth);
+        // (Это сообщение в целом не нужно, т.к. PlayerSpawner устанавливает здоровье)
+    }
+
+    void Update()
+    {
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+
+        float moveInput = Input.GetAxisRaw("Horizontal");
+        rb.linearVelocity = new Vector2(moveInput * moveSpeed, rb.linearVelocity.y);
+
+        if (moveInput != 0)
+        {
+            spriteRenderer.flipX = moveInput < 0;
+        }
+
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            animator.SetBool("IsJumping", true);
+        }
+
+        if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && isGrounded)
+        {
+            RaycastHit2D hit = Physics2D.Raycast(groundCheck.position, Vector2.down, groundCheckRadius + 0.1f, platformLayer);
+            if (hit.collider != null)
+            {
+                PlatformEffector2D platformEffector = hit.collider.GetComponent<PlatformEffector2D>();
+                if (platformEffector != null && platformEffector.useOneWay)
+                {
+                    currentOneWayPlatformEffector = platformEffector;
+                    Physics2D.IgnoreCollision(playerCollider, hit.collider, true);
+                    StartCoroutine(EnablePlatformCollision(hit.collider, dropThroughDuration));
+                }
+            }
+        }
+
+        animator.SetFloat("Speed", Mathf.Abs(moveInput));
+
+        animator.SetBool("IsFalling", rb.linearVelocity.y < -0.1f);
+
+        if (isGrounded && Mathf.Abs(rb.linearVelocity.y) < 0.01f)
+        {
+            animator.SetBool("IsJumping", false);
+        }
+    }
+
+    IEnumerator EnablePlatformCollision(Collider2D platformCollider, float duration)
+    {
+        yield return new WaitForSeconds(duration);
+        if (playerCollider != null && platformCollider != null && Physics2D.GetIgnoreCollision(playerCollider, platformCollider))
+        {
+            Physics2D.IgnoreCollision(playerCollider, platformCollider, false);
+            currentOneWayPlatformEffector = null;
+        }
+    }
+
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Spikes"))
+        {
+            if (Time.time >= lastDamageTime + damageCooldown)
+            {
+                // Вызываем метод TakeDamage на GameManager
+                GameManager.Instance.TakeDamage(GameManager.Instance.spikeDamage);
+                lastDamageTime = Time.time;
+            }
+        }
+    }
+
+    void OnTriggerStay2D(Collider2D other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Spikes"))
+        {
+            if (Time.time >= lastDamageTime + damageCooldown)
+            {
+                // Вызываем метод TakeDamage на GameManager
+                GameManager.Instance.TakeDamage(GameManager.Instance.spikeDamage);
+                lastDamageTime = Time.time;
+            }
+        }
+    }
+
+    // Удаляем TakeDamage и Die из PlayerMovement, они теперь в GameManager
+    // public int GetCurrentHealth() { return currentHealth; } // Этот метод тоже удаляем
+    void OnDrawGizmosSelected()
+    {
+        if (groundCheck != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+        }
+    }
+}
