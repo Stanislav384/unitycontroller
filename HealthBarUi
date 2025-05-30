@@ -1,0 +1,61 @@
+using UnityEngine;
+using UnityEngine.UI; // Обязательно добавьте для работы с UI компонентами
+using UnityEngine.SceneManagement; // Для подписки на события загрузки сцен
+
+public class HealthBarUI : MonoBehaviour
+{
+    public Slider healthSlider; // Ссылка на компонент Slider
+
+    void Awake()
+    {
+        // Получаем компонент Slider на этом же GameObject
+        if (healthSlider == null)
+        {
+            healthSlider = GetComponent<Slider>();
+        }
+
+        if (healthSlider == null)
+        {
+            Debug.LogError("HealthBarUI: Slider component not found on this GameObject or not assigned!");
+            this.enabled = false; // Отключаем скрипт, если Slider не найден
+            return;
+        }
+
+        // Подписываемся на событие загрузки сцены, чтобы обновить полосу здоровья
+        // Это важно, так как GameManager может быть инициализирован раньше, чем этот UI
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    void OnDestroy()
+    {
+        // Отписываемся от события при уничтожении объекта, чтобы избежать ошибок
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    // Вызывается при загрузке каждой сцены
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // Обновляем UI после загрузки сцены, чтобы гарантировать актуальные данные
+        UpdateHealthBar();
+    }
+
+    void Update()
+    {
+        // Этот Update будет вызываться каждый кадр.
+        // Можно использовать его для плавного обновления,
+        // но лучше обновлять только при изменении здоровья, чтобы сэкономить ресурсы.
+        // Тем не менее, для простоты и моментальной реакции, пока оставим так.
+        UpdateHealthBar();
+    }
+
+    public void UpdateHealthBar()
+    {
+        if (GameManager.Instance != null && healthSlider != null)
+        {
+            // Устанавливаем максимальное значение слайдера равным максимальному здоровью из GameManager
+            healthSlider.maxValue = GameManager.Instance.maxHealth;
+            // Устанавливаем текущее значение слайдера равным текущему здоровью из GameManager
+            healthSlider.value = GameManager.Instance.currentHealth;
+        }
+    }
+}
