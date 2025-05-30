@@ -13,52 +13,62 @@ public class PlayerSpawner : MonoBehaviour
             return;
         }
 
-        // Проверяем, существует ли уже игрок в сцене (если он был DontDestroyOnLoad, например)
-        // В вашем случае, PlayerMovement не DontDestroyOnLoad, так что это менее критично.
-        // Но если бы он был, то здесь бы мы искали PlayerMovement.Instance
+        // Ищем StartPoint один раз
+        GameObject currentSpawnPoint = GameObject.FindGameObjectWithTag("StartPoint");
+        if (currentSpawnPoint == null)
+        {
+            Debug.LogWarning("StartPoint не найден в текущей сцене! Игрок может появиться в начале координат сцены.");
+            // Можно здесь добавить логику, что если StartPoint не найден,
+            // то игрок спавнится в (0,0,0) или не спавнится вообще.
+            // Пока просто выходим, чтобы избежать NullReferenceException.
+            return;
+        }
+
+        // Проверяем, существует ли уже игрок в сцене (например, если он был DontDestroyOnLoad)
+        // В вашем случае, PlayerMovement не DontDestroyOnLoad, так что эта проверка
+        // будет ловить игрока, если он почему-то уже был в сцене (например, вручную добавлен).
         GameObject existingPlayer = GameObject.FindGameObjectWithTag("Player"); 
+        
         if (existingPlayer != null)
         {
             // Если игрок уже есть, просто перемещаем его на StartPoint
-            // (этот блок сработает, если вы решите сделать PlayerMovement DontDestroyOnLoad в будущем)
-            GameObject spawnPoint = GameObject.FindGameObjectWithTag("StartPoint");
-            if (spawnPoint != null)
+            existingPlayer.transform.position = currentSpawnPoint.transform.position;
+            
+            Rigidbody2D rb = existingPlayer.GetComponent<Rigidbody2D>();
+            if (rb != null)
             {
-                existingPlayer.transform.position = spawnPoint.transform.position;
-                // Сброс velocity
-                Rigidbody2D rb = existingPlayer.GetComponent<Rigidbody2D>();
-                if (rb != null) rb.linearVelocity = Vector2.zero;
-                
-                // Активируем его, если он был отключен после смерти
-                existingPlayer.SetActive(true); 
-                existingPlayer.GetComponent<Collider2D>().enabled = true;
-                existingPlayer.GetComponent<Rigidbody2D>().isKinematic = false;
-                existingPlayer.GetComponent<PlayerMovement>().enabled = true;
-
-                Debug.Log("Existing player moved to StartPoint.");
+                rb.linearVelocity = Vector2.zero; // Сброс velocity
             }
+            
+            // Активируем его, если он был отключен после смерти
+            existingPlayer.SetActive(true); 
+            Collider2D col = existingPlayer.GetComponent<Collider2D>();
+            if(col != null) col.enabled = true;
+            
+            if (rb != null) 
+            {
+                // Использование bodyType вместо isKinematic
+                rb.bodyType = RigidbodyType2D.Dynamic; // Возвращаем обычную физику
+            }
+            
+            PlayerMovement pm = existingPlayer.GetComponent<PlayerMovement>();
+            if(pm != null) pm.enabled = true; // Включаем скрипт
+
+            Debug.Log("Existing player moved to StartPoint.");
             return; // Выходим, так как игрок уже есть
         }
 
 
         // Если игрока нет, спавним новый префаб
-        GameObject spawnPoint = GameObject.FindGameObjectWithTag("StartPoint");
-        if (spawnPoint != null && playerPrefab != null)
+        if (playerPrefab != null)
         {
-            GameObject spawnedPlayer = Instantiate(playerPrefab, spawnPoint.transform.position, Quaternion.identity);
-
-            // Здесь мы должны убедиться, что PlayerMovement скрипт на спавненном игроке
-            // инициализирует свое здоровье из GameManager.
-            // Но в нашей текущей реализации PlayerMovement не имеет currentHealth,
-            // он напрямую обращается к GameManager.Instance.currentHealth для TakeDamage.
-            // Поэтому, никаких дополнительных действий здесь не требуется для установки здоровья,
-            // только для его спавна.
-
+            GameObject spawnedPlayer = Instantiate(playerPrefab, currentSpawnPoint.transform.position, Quaternion.identity);
+            spawnedPlayer.tag = "Player"; // Убедимся, что у спавненного игрока есть тэг "Player"
             Debug.Log("Player spawned at StartPoint.");
         }
         else
         {
-            Debug.LogWarning("StartPoint или PlayerPrefab не найден!");
+            Debug.LogWarning("PlayerPrefab не назначен в PlayerSpawner!");
         }
     }
 }
