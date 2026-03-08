@@ -1,0 +1,133 @@
+using UnityEngine;
+
+public class PlayerMovement : MonoBehaviour
+{
+    [Header("Movement")]
+    public float moveSpeed = 6f;       // Скорость ходьбы
+    public float sprintSpeed = 9f;     // Скорость бега (Shift)
+    public float groundDrag = 6f;      // Трение (чем больше, тем резче остановка)
+    public float jumpForce = 12f;      // Сила прыжка
+    public float airMultiplier = 0.4f; // Управление в воздухе (0.4 = 40% от наземного)
+
+    [Header("Ground Check")]
+    public float playerHeight = 2f;    // Высота капсулы
+    public LayerMask whatIsGround;     // Слой земли
+    bool isGrounded;
+
+    [Header("Keybinds")]
+    public KeyCode jumpKey = KeyCode.Space;
+    public KeyCode sprintKey = KeyCode.LeftShift;
+
+    [Header("References")]
+    public Transform orientation;      // Ссылка на самого себя или объект ориентации
+    public Animator animator;          // Ссылка на компонент Animator
+
+    float horizontalInput;
+    float verticalInput;
+    Vector3 moveDirection;
+    Rigidbody rb;
+
+    void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+        rb.freezeRotation = true;
+
+        // Если orientation не назначен, используем этот же объект
+        if (orientation == null) orientation = transform;
+        
+        // Пытаемся автоматически найти Animator на объекте или его детях (самой модельке)
+        if (animator == null) animator = GetComponentInChildren<Animator>();
+    }
+
+    void Update()
+    {
+        // 1. Проверка земли (Raycast вниз)
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, playerHeight * 0.5f + 0.2f, whatIsGround);
+
+        MyInput();
+        SpeedControl();
+        UpdateAnimations(); // Вызов метода анимаций
+
+        // 2. Управление трением (Drag) - в Unity 6 используем linearDamping
+        if (isGrounded)
+            rb.linearDamping = groundDrag;
+        else
+            rb.linearDamping = 0; // В воздухе трения нет
+    }
+
+    void FixedUpdate()
+    {
+        MovePlayer();
+    }
+
+    void MyInput()
+    {
+        horizontalInput = Input.GetAxisRaw("Horizontal");
+        verticalInput = Input.GetAxisRaw("Vertical");
+
+        // Прыжок
+        if (Input.GetKeyDown(jumpKey) && isGrounded)
+        {
+            Jump();
+        }
+    }
+
+    void MovePlayer()
+    {
+        // Вычисляем направление движения
+        moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
+
+        float currentSpeed = Input.GetKey(sprintKey) ? sprintSpeed : moveSpeed;
+
+        // Движение по земле
+        if (isGrounded)
+            rb.AddForce(moveDirection.normalized * currentSpeed * 10f, ForceMode.Force);
+        // Движение в воздухе
+        else if (!isGrounded)
+            rb.AddForce(moveDirection.normalized * currentSpeed * 10f * airMultiplier, ForceMode.Force);
+    }
+
+    void SpeedControl()
+    {
+        // Ограничение скорости (иначе AddForce разгонит нас до бесконечности)
+        // В Unity 6 используем linearVelocity вместо velocity
+        Vector3 flatVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+
+        float currentMaxSpeed = Input.GetKey(sprintKey) ? sprintSpeed : moveSpeed;
+
+        if (flatVel.magnitude > currentMaxSpeed)
+        {
+            Vector3 limitedVel = flatVel.normalized * currentMaxSpeed;
+            rb.linearVelocity = new Vector3(limitedVel.x, rb.linearVelocity.y, limitedVel.z);
+        }
+    }
+
+    void Jump()
+    {
+        // Сбрасываем вертикальную скорость перед прыжком для стабильной высоты
+        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+
+        // Отправляем триггер прыжка в Animator
+        if (animator != null)
+        {
+            animator.SetTrigger("Jump");
+        }
+    }
+
+    void UpdateAnimations()
+    {
+        if (animator == null) return;
+
+        // 1. Передаем статус касания земли
+        animator.SetBool("isGrounded", isGrounded);
+
+        // 2. Получаем локальную скорость персонажа (относительно того, куда он смотрит)
+        Vector3 localVelocity = orientation.InverseTransformDirection(rb.linearVelocity);
+
+        // 3. Передаем скорость в параметры Blend Tree со сглаживанием (0.1f)
+        // Это предотвратит резкие "дергания" анимации при старте/остановке
+        animator.SetFloat("MoveX", localVelocity.x, 0.1f, Time.deltaTime);
+        animator.SetFloat("MoveZ", localVelocity.z, 0.1f, Time.deltaTime);
+    }
+}
